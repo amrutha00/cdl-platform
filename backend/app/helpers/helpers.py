@@ -158,7 +158,7 @@ def token_required(f):
 			current_user = cdl_users.find_one({"_id": ObjectId(data["id"])})
 			assert current_user != None
 		except Exception as e:
-			print("Error: ", e)
+			print("Error: ", e, token)
 			return response.error("You must log in to perform this action", Status.NOT_FOUND)
 		return f(current_user, *args, **kwargs)
 
