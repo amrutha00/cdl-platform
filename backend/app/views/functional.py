@@ -18,9 +18,10 @@ from app.helpers.helpers import token_required, token_required_public, build_dis
     deduplicate, combine_pages, standardize_url, extract_hashtags, format_url, build_display_url
 from app.helpers import response
 from app.helpers.helper_constants import RE_URL_DESC
-from app.helpers.prompts import context_qgen_prompt, context_intent_qgen_prompt, contextquery_qgen_s1,\
+from app.helpers.prompts import context_qgen_prefix_prompt, context_intent_qgen_prompt, contextquery_qgen_s1,\
     contextquery_qgen_s2, contextquery_qgen_s3, contextquery_qgen_prefix, context_qgen_prompt_beforesent,\
-    context_qgen_prompt_aftersent
+    context_qgen_prompt_aftersent, goal_prefix_prompt, goal_suffix_prompt, qa_prefix_prompt, goal_extraction_prefix_prompt,\
+    goal_achieve_prefix_prompt
 from app.helpers.status import Status
 from app.helpers.scraper import ScrapeWorker
 from app.helpers.topic_map import TopicMap
@@ -39,6 +40,7 @@ from app.views.logs import log_connection, log_submission, log_click, log_commun
 from elastic.manage_data import ElasticManager
 from app.models.users import Users
 from app.models.submission_stats import SubmissionStats
+#from app.models.goals import Goals, Goal
 
 functional = Blueprint('functional', __name__)
 CORS(functional)
@@ -168,6 +170,116 @@ def export(current_user):
 
     return response.success(export_helper(user_id, search_id), Status.OK)
 
+"""
+
+
+def create_goals_from_submission(submission_text, submission_id, user_id):
+    goals_db = Goals()
+    neural_api = os.environ.get("neural_api")
+    if not neural_api:
+        return "Generation not currently supported, cannot extract goals from submission"
+    try:
+        resp = requests.post(neural_api + "/neural/generate", json={"input": goal_extraction_prefix_prompt + submission_text + goal_suffix_prompt})
+        resp_json = resp.json()
+
+        if resp.status_code == 200:
+            output = resp_json["output"]
+            
+            extracted_goals = []
+
+            try:
+                output = output.split("\n")
+                for line in output:
+                    if line[:6] == "Goal: ":
+                        extracted_goal = line[6:]
+                        extracted_goals.append(extracted_goal)
+            except Exception as e:
+                print(output, e)
+        else:
+            print(resp_json["message"])
+    except Exception as e:
+        traceback.print_exc()
+        return "Unable to extract goals."
+
+    if goals_db.find_one({"submission_id": submission_id}):
+        goals_db.update_one({"submission_id": submission_id}, {"$set": {"extracted_goals": extracted_goals, "last_updated": time.time()}}, upsert=False)
+    else:
+        goal = Goal(user_id, submission_id, extracted_goals)
+        goal_id = goals_db.insert(goal)
+
+    return "Updated successfully"
+
+
+
+@functional.route("/api/goals/<id>", methods=["GET"])
+@token_required
+def handle_goal(current_user, id):
+    ip = request.remote_addr
+    user_id = current_user.id
+    user_communities = current_user.communities
+    selected_goal = request.args.get("g", "")
+
+    try:
+        goal_id = ObjectId(id)
+    except Exception as e:
+        traceback.print_exc()
+        return response.error("Invalid goal ID.", Status.BAD_REQUEST)
+    
+    neural_api = os.environ.get("neural_api")
+    if not neural_api:
+        return response.error("Generation not currently supported.", Status.NOT_IMPLEMENTED)
+    try:
+        resp = requests.post(neural_api + "/neural/generate", json={"input": goal_achieve_prefix_prompt + selected_goal + goal_suffix_prompt})
+        resp_json = resp.json()
+
+        if resp.status_code == 200:
+            output = resp_json["output"]            
+            how_to_achieve = {}
+            how_to_achieve["selected_goal"] = selected_goal
+            how_to_achieve["answer"] = ""
+            how_to_achieve["questions"] = []
+
+            try:
+                output = output.split("\n")
+                for line in output:
+                    if line[:8] == "Answer: ":
+                        answer = line[8:]
+                        how_to_achieve["answer"] = answer
+                    if line[:10] == "Question: ":
+                        question = line[10:]
+                        how_to_achieve["questions"].append(question)
+            except Exception as e:
+                print(output, e)
+        else:
+            print(resp_json["message"])
+    except Exception as e:
+        traceback.print_exc()
+
+    log_recommendation_request(ip, user_id, user_communities, method="goal",
+                                       metadata={"goal_id": goal_id, "goal_description": selected_goal, "output": output, "version": "0.1"})
+   
+    return response.success({"goal": how_to_achieve}, Status.OK)
+
+@functional.route("/api/goals", methods=["GET"])
+@token_required
+def handle_goals(current_user):
+    user_id = current_user.id
+    goals_db = Goals()
+    all_user_goals = goals_db.find({"user_id": user_id})
+    goal_return_struct = []
+    for goal in all_user_goals:
+        goal_id = str(goal.id)
+        submission_id = str(goal.submission_id)
+        last_updated = goal.last_updated
+        extracted_goals = goal.extracted_goals
+        for individual_goal in extracted_goals:
+            goal_return_struct.append({"id": goal_id, "submission_id": submission_id, "goal_description": individual_goal, "last_updated": last_updated})
+    goal_return_struct = sorted(goal_return_struct, reverse=True, key=lambda x: x["last_updated"])[:50]
+    return response.success({"all_goals": goal_return_struct}, Status.OK)
+
+"""
+	
+	
 @functional.route("/api/submission/", methods=["POST"])
 @token_required
 def create_submission(current_user):
@@ -535,6 +647,11 @@ def submission(current_user, id):
 
                 if highlighted_text != None:
                     insert_obj["highlighted_text"] = highlighted_text
+
+                    # handle goals updating
+                    #goal_status = create_goals_from_submission(highlighted_text, ObjectId(id), ObjectId(user_id))
+                    #print("GOAL status", goal_status)
+
                 if explanation != None:
                     insert_obj["explanation"] = explanation
                 if source_url != None:
@@ -577,6 +694,8 @@ def submission(current_user, id):
             update = cdl_logs.update_one({"_id": ObjectId(id)}, {"$set": insert_obj})
 
             if update.acknowledged:
+
+                
 
                 # a submission is added to a new community
                 if community_id:
@@ -930,7 +1049,7 @@ def generate(current_user):
     elif mode == "qa":
         if not query:
             return response.error("Query required for question-answer mode.", Status.BAD_REQUEST)
-        prompt = "Answer the following question with fewer than 100 words. Question: " + query + ". Answer: "
+        prompt = qa_prefix_prompt + query + goal_suffix_prompt
 
     elif mode == "contextual_qa":
         if not context:
@@ -944,8 +1063,8 @@ def generate(current_user):
         if not context:
             return response.error("Context required for question generation.", Status.BAD_REQUEST)
 
-        prompt = context_qgen_prompt + '"' + context + '" --> QUESTIONS:'
-
+        prompt = context_qgen_prefix_prompt + context + goal_suffix_prompt
+        
     elif mode == "summarize":
         if not context:
             return response.error("Context required for summarization.", Status.BAD_REQUEST)
@@ -1839,6 +1958,9 @@ def create_submission_helper(ip=None, user_id=None, user_communities=None, highl
 
     if status.acknowledged:
         doc.id = status.inserted_id
+
+
+
         index_status, hashtags = elastic_manager.add_to_index(doc)
         # update community core content if necessary
         # only consider when source url is included
@@ -1885,6 +2007,8 @@ def create_submission_helper(ip=None, user_id=None, user_communities=None, highl
             except Exception as e:
                 traceback.print_exc()
                 pass
+        
+        
 
         return "Context successfully submitted and indexed.", Status.OK, status.inserted_id
 

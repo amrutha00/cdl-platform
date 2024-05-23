@@ -62,7 +62,7 @@ export default function Layout({ children }) {
             <div className="max-h-[900px] min-h-[600px] items-stretch" style={{ marginTop: '70px', display: 'flex' }}>
 
                 {/* <div className="flex flex-col min-h-[590px] " style={{ marginTop: '70px', display: 'flex' }}> */}
-                {
+                { /*
                     !isLoggedOut &&
                     <div
                         // style={{ overflowY: 'auto', scrollbarWidth: 'thin', scrollbarColor: 'gray white' }} 
@@ -71,6 +71,7 @@ export default function Layout({ children }) {
                             <SideNav />
                         </div>
                     </div>
+                  */
                 }
                 <Divider orientation="vertical" flexItem style={{ color: 'grey' }} />
 
