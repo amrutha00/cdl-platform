@@ -15,7 +15,7 @@ import { Button } from "../components/ui/ui/button"
 import useUserDataStore from "../store/userData";
 import useQuickAccessStore from "../store/quickAccessStore";
 import useSubmissionStore from "../store/submissionStore";
-import { BASE_URL_CLIENT, GET_COMMUNITY_ENDPOINT, SEARCH_ENDPOINT, WEBSITE_URL } from "../static/constants";
+import { BASE_URL_CLIENT, SEARCH_ENDPOINT, WEBSITE_URL } from "../static/constants";
 import { Tooltip, Typography } from "@mui/material";
 
 
@@ -28,7 +28,7 @@ export function CollapsibleCommunity({ community }) {
     const handleCommunityClick = async () => {
 
         // added source=sidebar to the url
-        const res = await fetch(BASE_URL_CLIENT + SEARCH_ENDPOINT + "?source=sidebar&own_submissions=True&community=" + community.community_id, {
+        const res = await fetch(BASE_URL_CLIENT + SEARCH_ENDPOINT + "?own_submissions=True&community=" + community.community_id, {
             method: "GET",
             headers: new Headers({
                 Authorization: jsCookie.get("token"),

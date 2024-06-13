@@ -20,10 +20,11 @@ import Container from "./homepage/container";
 import { Link } from "@mui/material";
 import Image from "next/image";
 
-// API and endpoints
-const baseURL_client = process.env.NEXT_PUBLIC_FROM_CLIENT + "api/";
-const feedback_endpoint = "feedback/";
+import { BASE_URL_CLIENT, FEEDBACK_ENDPOINT } from "../static/constants"
 
+
+
+// API and endpoints
 function NavigateTo(route) {
   Router.push(route);
 }
@@ -78,7 +79,7 @@ export default function Footer(props) {
   };
 
   const handleSubmitFeedback = async () => {
-    var URL = baseURL_client + feedback_endpoint;
+    var URL = BASE_URL_CLIENT + FEEDBACK_ENDPOINT;
     var feedback_message = document.getElementById("feedbackInput").value;
     console.log(feedback_message);
     const res = await fetch(URL, {

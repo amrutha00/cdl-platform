@@ -27,8 +27,7 @@ open powershell
 wsl -d docker-desktop
 sysctl -w vm.max_map_count=262144
 ```
-- With all of the Docker containers, packages, and models, the total size is ~10GB. Without Neural, it is ~3GB.
-
+- With all of the Docker containers, packages, and models, the total size is ~2GB.
 ### Configuring the env files
 Copy the following to ``backend\env_local.ini``:
 
@@ -48,7 +47,6 @@ elastic_password=admin
 elastic_index_name=submissions
 elastic_webpages_index_name=webpages
 elastic_domain=http://host.docker.internal:9200/
-elastic_domain_backfill=http://localhost:9200/
 ```
 
 Copy the following to ``frontend\website\.env.local``":
@@ -174,15 +172,6 @@ cd <project-directory>\backend
 pytest .\tests\test_server.py
 ```
 
-### Running the Back-Fill script
-Note: Local Docker containers must be up and running before you run below commands
-```
-cd <project-directory>\backend
-python .\app\helpers\backfill.py [--env_path] [--type=<"submissions" or "webpages">]
-```
-Here, `--env_path` is an optional argument that takes the path to the environment file, and the default file considered is `backend\env_local.ini`.
-
-The `--type` is another optional argument that takes two values: `submissions` or `webpages`, and the default value is `submissions`.
 </details>
 
 <details>

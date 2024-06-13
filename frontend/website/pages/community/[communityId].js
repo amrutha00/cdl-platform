@@ -1,8 +1,8 @@
 import { React, useState, useEffect } from 'react';
 import Head from "next/head";
 import jsCookie from 'js-cookie';
-import { Paper, Button, IconButton, Skeleton, Tooltip, Typography, Divider } from "@mui/material";
-import { BASE_URL_CLIENT, BASE_URL_SERVER, GET_COMMUNITIES_ENDPOINT, GET_COMMUNITY_ENDPOINT, SEARCH_ENDPOINT } from '../../static/constants';
+import { Skeleton, Tooltip, Typography, Divider } from "@mui/material";
+import { BASE_URL_CLIENT, BASE_URL_SERVER, COMMUNITIES_ENDPOINT, WEBSITE_SEARCH_ENDPOINT, FOLLOW_COMMUNITY_ENDPOINT } from '../../static/constants';
 import useCommunityStore from '../../store/communityStore';
 import QuickSubmissionBox from '../../components/quickSubmissionBox';
 import SearchResult from '../../components/searchresult';
@@ -14,8 +14,8 @@ import useQuickAccessStore from '../../store/quickAccessStore';
 import { WEBSITE_URL } from "../../static/constants";
 import GroupIcon from '@mui/icons-material/Group';
 import GroupsIcon from '@mui/icons-material/Groups';
-
-var searchURL = BASE_URL_CLIENT + SEARCH_ENDPOINT;
+import Router, { useRouter } from 'next/router';
+import { Button} from "@mui/material";
 
 
 export default function CommunityHomepage(props) {
@@ -58,7 +58,7 @@ export default function CommunityHomepage(props) {
 
     const getCommunitySubmissions = async () => {
 
-        const com_submissions = await fetch(searchURL + "?community=" + props.community.id + "&page=0", {
+        const com_submissions = await fetch(BASE_URL_CLIENT + WEBSITE_SEARCH_ENDPOINT + "?community=" + props.community.id + "&own_submissions=False&page=0", {
             headers: new Headers({
                 Authorization: jsCookie.get("token"),
             }),
@@ -84,7 +84,7 @@ export default function CommunityHomepage(props) {
     };
 
     const updateDropDownSearch = async () => {
-        let resp = await fetch(BASE_URL_CLIENT + GET_COMMUNITIES_ENDPOINT, {
+        let resp = await fetch(BASE_URL_CLIENT + COMMUNITIES_ENDPOINT, {
             method: "GET",
             headers: new Headers({
                 Authorization: jsCookie.get("token"),
@@ -100,14 +100,12 @@ export default function CommunityHomepage(props) {
 
 
     const followCommunity = async () => {
-        const followCommunityURL = BASE_URL_CLIENT + "followCommunity";
-
         const data = {
             community_id: communityId,
             command: "follow",
         }
 
-        const res = await fetch(followCommunityURL, {
+        const res = await fetch(BASE_URL_CLIENT + FOLLOW_COMMUNITY_ENDPOINT, {
             method: "POST",
             body: JSON.stringify(data),
             headers: new Headers({
@@ -143,7 +141,7 @@ export default function CommunityHomepage(props) {
     };
 
     const unfollowCommunity = async () => {
-        const followCommunityURL = BASE_URL_CLIENT + "followCommunity";
+        const followCommunityURL = BASE_URL_CLIENT + FOLLOW_COMMUNITY_ENDPOINT;
 
         const data = {
             community_id: communityId,
@@ -175,6 +173,16 @@ export default function CommunityHomepage(props) {
 
     };
 
+    const handleVisualizeCommunity = () => {
+        Router.push({
+          pathname: "/visualizemap",
+          query: {
+            community: communityId,
+            source: "visualizeConnections"
+          }
+        });
+      }
+
     return (
         <div className="container mx-auto p-6">
             <Head>
@@ -188,15 +196,6 @@ export default function CommunityHomepage(props) {
                 <div>
                     {joined ? (
                         <div className="flex justify-between items-start w-full">
-                            <div>
-                                <div className="flex items-center text-sm text-green-600">
-                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                        <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                    </svg>
-                                    You have joined this community
-                                    {isPublic && isFollowing ? "and are following it" : ""}
-                                </div>
-                            </div>
                             <div className="lg:ml-9 ml-5 flex flex-col">
                                 <div className="text-sm text-gray-400 flex items-center">
                                     <GroupsIcon className="text-gray-400 h-5 w-5 mr-2" />
@@ -207,12 +206,32 @@ export default function CommunityHomepage(props) {
                                     {joinedUsers.length} contributor{joinedUsers.length != 1 ? "s" : ""}
                                 </div>
                             </div>
+                            <div>
+                                <div className="flex items-center text-sm text-green-600">
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                        <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                    You have joined this community
+                                    {isPublic && isFollowing ? "and are following it" : ""}
+                                </div>
+                            </div>
+                            
                         </div>
 
 
                     ) : (
                         <>
                             <div className="flex justify-between items-start w-full">
+                                <div className="lg:ml-9 ml-5 flex flex-col">
+                                    <div className="text-sm text-gray-400 flex items-center">
+                                        <GroupsIcon className="text-gray-400 h-5 w-5 mr-2" />
+                                        {numFollowers} follower{numFollowers != 1 ? "s" : ""}
+                                    </div>
+                                    <div className="text-sm text-gray-400 flex items-center  mt-3">
+                                        <GroupIcon className="text-gray-400 h-5 w-5 mr-2" />
+                                        {joinedUsers.length} contributor{joinedUsers.length != 1 ? "s" : ""}
+                                    </div>
+                                </div>
                                 <div className="flex flex-col w-50">
                                     <div className='w-10/12'>
                                         {isPublic && isFollowing ? (
@@ -234,16 +253,6 @@ export default function CommunityHomepage(props) {
                                         You have not joined this community {isPublic && isFollowing ? "but are following it" : ""}
                                     </div>
                                 </div>
-                                <div className="lg:ml-9 ml-5 flex flex-col">
-                                    <div className="text-sm text-gray-400 flex items-center">
-                                        <GroupsIcon className="text-gray-400 h-5 w-5 mr-2" />
-                                        {numFollowers} follower{numFollowers != 1 ? "s" : ""}
-                                    </div>
-                                    <div className="text-sm text-gray-400 flex items-center  mt-3">
-                                        <GroupIcon className="text-gray-400 h-5 w-5 mr-2" />
-                                        {joinedUsers.length} contributor{joinedUsers.length != 1 ? "s" : ""}
-                                    </div>
-                                </div>
                             </div>
                         </>
                     )}
@@ -261,7 +270,12 @@ export default function CommunityHomepage(props) {
             <Divider />
 
             <section className="community-submissions mt-2" >
-                <h2 className="text-2xl font-semibold mb-2 text-gray-800">Community Submissions</h2>
+                <h2 className="text-2xl font-semibold mb-2 text-gray-800">
+                    Community Submissions
+                    <Button onClick={handleVisualizeCommunity}>
+                        Visualize
+                    </Button>
+                </h2>
                 {!communitySubmissionsLoading && communitySubmissions ?
                     <Grid container
                         margin={"auto"}
@@ -285,8 +299,8 @@ export default function CommunityHomepage(props) {
                                                     submission_id={d.submission_id}
                                                     result_hash={d.result_hash}
                                                     hashtags={d.hashtags}
-                                                    highlighted_text={d.highlighted_text}
-                                                    explanation={d.explanation}
+                                                    description={d.description}
+                                                    title={d.title}
                                                     time={d.time}
                                                     communities_part_of={d.communities_part_of}
                                                     auth_token={jsCookie.get("token")}
@@ -335,20 +349,9 @@ export async function getServerSideProps(context) {
 
     const { communityId } = context.params;
 
-    //if (
-    //    context.req.cookies.token === "" ||
-    //    context.req.cookies.token === undefined
-    //) {
-    //    return {
-    //        redirect: {
-    //            destination: "/auth",
-    //            permanent: false,
-    //        },
-    //    };
-    //} else {
     try {
 
-        var communityHomePageURL = BASE_URL_SERVER + "community/" + communityId;
+        var communityHomePageURL = BASE_URL_SERVER + COMMUNITIES_ENDPOINT + "/" + communityId;
 
         const res = await fetch(communityHomePageURL, {
             headers: new Headers({
