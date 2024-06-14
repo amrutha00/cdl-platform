@@ -175,14 +175,15 @@ def extension_search(current_user):
         queries = [predicted_intent]
         documents = [x["title"] + " - " + x["description"] for x in submission_results_pages]
         reranked_submissions = rerank(queries, documents)
-        ## Assume a single query
-        indices = reranked_submissions['0']["indices"]
-        scores = reranked_submissions['0']["scores"]
-        for i in range(len(indices)):
-            if scores[i] > 40:
-                web_results = [submission_results_pages[indices[i]]] + web_results
-                # Only include one result from submission
-                break
+        if reranked_submissions:
+            ## Assume a single query
+            indices = reranked_submissions['0']["indices"]
+            scores = reranked_submissions['0']["scores"]
+            for i in range(len(indices)):
+                if scores[i] > 40:
+                    web_results = [submission_results_pages[indices[i]]] + web_results
+                    # Only include one result from submission
+                    break
 
     # Add Users Also Ask questions
     sl_db = SearchLogs()
@@ -347,6 +348,9 @@ def website_search(current_user):
 
             sl_db = SearchLogs()
 
+
+            urls_to_find = {}
+
             for obj in submissions['data']:
                 mentions = re.finditer(RE_URL_DESC, obj['description'])
                 for mention in mentions:
@@ -357,30 +361,57 @@ def website_search(current_user):
                         sub_mentions[par_sub_id] = [obj['submission_id']]
 
                 sub_url = obj["submission_url"]
+                source_url = obj["source_url"]
 
-                # TODO need to batch this
-                searches_on_url = sl_db.find({"context.url": sub_url})
-                for search_log in searches_on_url:
-                    genq = search_log.intent["generated_question"]
-                    # Probably need to make some distinction between opening and typing (sep between ht and webpage desc)
-                    if search_log.intent.get("typed_query", "") != "":
-                        q_obj = {"text": genq, "source_id": obj["submission_id"]}
-                        if q_obj not in questions_list:
-                            questions_list.append(q_obj)
+
+                if sub_url not in urls_to_find:
+                    urls_to_find[sub_url] = [obj["submission_id"]]
+                else:
+                    urls_to_find[sub_url].append(obj["submission_id"])
+
+                if source_url:
+                    if source_url not in urls_to_find:
+                        urls_to_find[source_url] = [obj["submission_id"]]
+                    else:
+                        urls_to_find[source_url].append(obj["submission_id"])
                 
-                # TODO need to chunck this
                 doc = obj["title"] + " - " + obj["description"]
                 docs.append(doc)
 
+
+            all_url_list = list(urls_to_find.keys())
+            searches_on_urls = sl_db.find_db({"context.url" : {"$in": all_url_list}, "filters.communities": {"$in": requested_communities}})
+            for search_log in searches_on_urls:
+                genq = search_log["intent"]["generated_question"]
+                if search_log["intent"].get("typed_query", "") != "":
+                    url = search_log["context"]["url"]
+                    sources = urls_to_find[url]
+                    for source_id in sources:
+                        q_obj = {"text": genq, "source_id": source_id}
+                        if q_obj not in questions_list:
+                            questions_list.append(q_obj)
+
+            # Gather all of the asked questions about the submissions
+            searches_on_url = sl_db.find({"context.url": sub_url}) 
+            for search_log in searches_on_url:
+                genq = search_log.intent["generated_question"]
+                # Probably need to make some distinction between opening and typing (sep between ht and webpage desc)
+                if search_log.intent.get("typed_query", "") != "":
+                    q_obj = {"text": genq, "source_id": obj["submission_id"]}
+                    if q_obj not in questions_list:
+                        questions_list.append(q_obj)
+            
             if docs and questions_list:
                 scored_docs = rerank([x["text"] for x in questions_list], docs)
-                for qidx in scored_docs:
-                    indices = scored_docs[qidx]["indices"]
-                    scores = scored_docs[qidx]["scores"]
-                    qidx = int(qidx)
-                    if scores[0] > 40:
-                        target_id  = submissions["data"][indices[0]]["submission_id"]
-                        questions_list[qidx]["target_id"] = target_id
+                if scored_docs:
+                    for qidx in scored_docs:
+                        indices = scored_docs[qidx]["indices"]
+                        scores = scored_docs[qidx]["scores"]
+                        qidx = int(qidx)
+                        # Only check top question-doc pair, and only have a single target
+                        if scores[0] > 40:
+                            target_id  = submissions["data"][indices[0]]["submission_id"]
+                            questions_list[qidx]["target_id"] = target_id
 
                     
 
@@ -936,27 +967,50 @@ def search_sort_by(user_id, search_id, sort_by):
 def rerank(queries, documents):
     """Calls neural rerank to rank documents given queries.
 
+    Method Parameters
+    ----------
+    queries : list, required
+        A list of queries, each str.
+    documents : list, required
+        A list of documents to score against the queries, each str.
 
-    queries - list of questions
-    documents - list of documents
-
-    returns
-
-        {}
-
+    Returns
+    ---------
+    dict
+        A dictionary of 
+            {<query_idx>: {"scores": <list of document scores>, "indices", <list of corresponding document indices>}}
     """
+
+    # First, chunk documents to make sure to handle long descriptions
+    chunked_docs = []
+    chunked_doc_index = [] # maps index of this to index of documents for rebuilding when scores are returned
+    for i,doc in enumerate(documents):
+        split_docs = doc.split("\n")
+        split_docs = [x for x in split_docs if len(x) > 10 and len(x) < 500] # precaution to make sure we don't get any super long one lines
+        for sd in split_docs:
+            chunked_docs.append(sd)
+            chunked_doc_index.append(i)
 
     neural_api = os.environ.get("neural_api")
     if not neural_api:
         print("Rerank not currently supported.")
         return {}
     try:
-        resp = requests.post(neural_api + "/neural/rerank", json={"queries": queries, "documents": documents})
+        resp = requests.post(neural_api + "/neural/rerank", json={"queries": queries, "documents": chunked_docs})
         resp_json = resp.json()
 
         if resp.status_code == 200:
-            scored_docs = resp_json["ranks"]  
+            scored_docs = resp_json["ranks"] 
+
+            # Now, replace to original indices from chunks
+            for query_idx in scored_docs:
+                indices = scored_docs[query_idx]["indices"]
+                for i in range(len(indices)):
+                    indices[i] = chunked_doc_index[indices[i]]
             return scored_docs  
+        else:
+            print(resp_json)
+            return {}
     except Exception as e:
         traceback.print_exc()
         return {}
@@ -1184,7 +1238,7 @@ def prep_subs_viz_conns(result_list, question_list):
                 "centralGravity": 1.5,
                 "avoidOverlap": 1,
             },
-            "minVelocity": 10,
+            "minVelocity": 30,
             "maxVelocity": 40,
         },
         "interaction": {

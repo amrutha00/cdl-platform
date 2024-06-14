@@ -272,9 +272,6 @@ export default function CommunityHomepage(props) {
             <section className="community-submissions mt-2" >
                 <h2 className="text-2xl font-semibold mb-2 text-gray-800">
                     Community Submissions
-                    <Button onClick={handleVisualizeCommunity}>
-                        Visualize
-                    </Button>
                 </h2>
                 {!communitySubmissionsLoading && communitySubmissions ?
                     <Grid container
@@ -284,6 +281,22 @@ export default function CommunityHomepage(props) {
                         display={"flex"}
                         justifyContent={"center"}
                         alignItems={"center"}>
+                        <Grid item
+                            sx={{
+                                border: '1px solid #1976d2',
+                                padding: '5px 10px',
+                                textDecoration: 'none',
+                                borderRadius: '5px',
+                                display: 'inline-block',
+                                margin: '5px',
+                                fontSize: '14px',
+                                cursor: 'pointer',
+                                color: '#1976d2',
+                                pointerEvents: 'auto'
+                            }}
+                            onClick={() => handleVisualizeCommunity()} >
+                            Visualize Submissions and Questions
+                        </Grid>
                         <InfiniteScroll
                             dataLength={communitySubmissions.length}
                             loader="" >
