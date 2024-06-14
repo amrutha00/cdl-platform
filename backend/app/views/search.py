@@ -45,19 +45,31 @@ elastic_manager = ElasticManager(
 @search.route("/api/search/summarize", methods=["GET"])
 @token_required
 def summarize(current_user):
-    """To summarize the search results
-    TODO update this
+    """Endpoint for summarizing a set of search results.
+    TODO this only handles up to ten titles. Can improve by
+        - Titles and descriptions
+        - Figuring out how to pass more than 10 results without model length limitations
+
+    Method Parameters
+    ----------
+    current_user : MongoDB Document, required
+        The user making the request. This is automatically passed via the @token_required wrapper.
+
+    Request Parameters
+    ---------
+        search_id: str, required
+            The search ID corresponding to the clicked result.
+
+    Returns
+    ---------
+    A response.success object with an "output" field in the dict, containing the generated summary.
     """
     search_id = request.args.get("search_id", "")
     user_id = current_user.id
     raw_search_results = export_helper(str(user_id), search_id)
-    print(raw_search_results)
     top_titles = [x["title"] for x in raw_search_results["data"][:10]]
-    print(top_titles)
     summary = generate(",".join(top_titles), summarize_prefix_prompt, llama3suffix_prompt, line_type="Summary: ")
     return response.success({"output": summary}, Status.OK)
-
-
 
 
 @search.route("/api/search/redirect", methods=["GET"])
@@ -93,6 +105,7 @@ def click():
 def extension_search(current_user):
     """Handles the search for the TextData extension.
     Searches both webpages and submissions.
+    TODO Eventually extend this to also include website description as broader context.
 
     Method Parameters
     ----------
@@ -110,7 +123,6 @@ def extension_search(current_user):
 
         highlighted_text: str, optional
             The text highlighted by the user before opening the extension.
-            TODO eventually extend this to also include website description as broader context.
 
     Returns
     ---------
@@ -274,14 +286,12 @@ def website_search(current_user):
         if x not in user_communities:
             user_communities.append(x)
 
-
     try:
         cache = Cache()
     except Exception as e:
         print(e)
         cache = None
 
-        
     # Paging case
     if search_id:
         search_logs = SearchLogs()
@@ -340,15 +350,11 @@ def website_search(current_user):
         # Call export with this `search_id` -> list of submissions for that search -> exported_list
         if visualize:
             submissions = export_helper(str(user_id), str(search_id))
-
-            sub_mentions = {}
-
-            questions_list = []
-            docs = []
-
             sl_db = SearchLogs()
 
-
+            sub_mentions = {}
+            questions_list = []
+            docs = []
             urls_to_find = {}
 
             for obj in submissions['data']:
@@ -413,14 +419,10 @@ def website_search(current_user):
                             target_id  = submissions["data"][indices[0]]["submission_id"]
                             questions_list[qidx]["target_id"] = target_id
 
-                    
-
-
             # Using sub_mentions dict to create mentions
             for obj in submissions['data']:
                 curr_id = obj['submission_id']
                 obj["mentions"] = sub_mentions.get(curr_id, [])
-
 
             graph_data = prep_subs_viz_conns(submissions['data'], questions_list)
             return response.success(graph_data, Status.OK)
@@ -445,6 +447,31 @@ def website_search(current_user):
 @search.route("/api/search/autocomplete", methods=["GET"])
 @token_required
 def autocomplete(current_user):
+    """Handles the autocomplete for the user on the website.
+    Only displays submissions that match according to their titles.
+
+    Method Parameters
+    ----------
+    current_user : MongoDB Document, required
+        The user making the request. This is automatically passed via the @token_required wrapper.
+
+    Request Parameters
+    ---------
+        query: str, required
+            What was typed in by the user in the search bar.
+
+        topn: int, optional
+            How many results to return, default 7.
+
+    Returns
+    ---------
+    On success, a response.success object with the dict containing a "suggestions" field,
+    which maps to a list dict
+        "labels": the title of the submission
+        "id": the ID of the submission
+        "url" the URL of the submission
+    """
+
     query = request.args.get("query", "")
     topn = int(request.args.get("topn", 7))
 
@@ -480,18 +507,44 @@ def autocomplete(current_user):
 @search.route("/api/search/export", methods=["GET"])
 @token_required
 def export(current_user):
+    """Handles the export of search results.
+
+    Method Parameters
+    ----------
+    current_user : MongoDB Document, required
+        The user making the request. This is automatically passed via the @token_required wrapper.
+
+    Request Parameters
+    ---------
+        search_id: str, required
+            The ID of the search to export.
+
+    Returns
+    ---------
+    On success, a response.success object with the output of export_helper.
+    """
     search_id = request.args.get("search_id", "")
     user_id = str(current_user.id)
     return response.success(export_helper(user_id, search_id), Status.OK)
 
-
-
 ### Helpers ###
 
 def create_pages_submission_lite(search_results, search_id):
-    """To match webpages in extension
+    """Helps format submission results for the extension. No need to include
+    communities, submission times, etc.
 
-    search_id is str
+    Method Parameters
+    ----------
+    search_results : list of dict, required
+        The hits from the OpenSearch search.
+    
+    search_id : str, required
+        The ID of the search.
+    
+    Returns
+    ---------
+    list of dict
+        A list of search results, formatted to "result" below.
     """
     all_results = []
     for hit in search_results:
@@ -515,7 +568,7 @@ def create_pages_submission_lite(search_results, search_id):
         
 
 def create_pages_submission(search_results, search_id, community_names, toggle_display="highlight"):
-    """Formats raw Elastic search results for display on the frontend.
+    """Formats raw OpenSearch search results for display on the website.
 
     Method Parameters
     ----------
@@ -536,8 +589,6 @@ def create_pages_submission(search_results, search_id, community_names, toggle_d
     list of dict
         A list of search results.
     """
-
-
     return_obj = []
     cdl_users = Users()
 
@@ -732,6 +783,25 @@ def search_submissions(user_id, requested_communities, query="", own_submissions
 
 
 def export_helper(user_id, search_id):
+    """Helper function to export search results. Note that the entire submission is included, not just the matching search text.
+
+    Method Parameters
+    ----------
+    user_id : str, required
+        The ID of the user performing the search.
+    search_id: str, required
+        The ID of the search.
+
+    Returns
+    ---------
+    dict
+        With the following fields:
+            query
+            own_submissions
+            search_time
+            requested_communities
+            data (the formatted search results)
+    """
     all_results = []
     index = 0
     try:
@@ -887,7 +957,7 @@ def find_community_names(communities):
 
     Returns
     ---------
-    dict {ObjectID:str}
+    dict {str:str}
         {<community id> : <community name>}
     """
     return_obj = {}
@@ -1014,9 +1084,6 @@ def rerank(queries, documents):
     except Exception as e:
         traceback.print_exc()
         return {}
-
-
-
 
 def generate(input_text, prefix, suffix, line_type="Question: "):
     """Call the Neural API to generate text from a language model.
@@ -1153,33 +1220,23 @@ def log_search_request(user_id, source=[], context={}, intent={}, filters={}):
     return search_id
 
 
-def deduplicate(pages):
-    """
-    Helper function to remove all duplicate pages. Saves them as "children" in top-rated page.
-    """
-    map_pages = defaultdict(list)
-
-    for page in pages:
-        url = page["orig_url"].split("#")[0]
-        map_pages[url].append(page)
-
-    for key in map_pages.keys():
-        map_pages[key][0]["children"] = map_pages[key][1:11] if len(map_pages[key]) > 10 else map_pages[key][1:]
-
-    return [p[0] for p in map_pages.values()]
-
-
 def prep_subs_viz_conns(result_list, question_list):
-    '''
-    Function to convert the submissions to nodes and edges for connection viz.
+    """Function to convert the submissions and questions to nodes and edges for connection viz.
 
-    Arguments:
-        result_list: List: A list of submissions in JSON format (JSON obtained from export_helper).
-        questions: List of {"text": text of question, "source_id": sub id where q was asked, "target_id": id of answer, or None}
+    Method Parameters
+    ----------
+    result_list: list, required
+        A list of submissions in JSON format (JSON obtained from export_helper).
 
-    Returns:
-        graph_data: Dict: A dict containing nodes and edges.
-    '''
+    question_list: list, required
+        A list of questions, formatted as
+            {"text": text of question, "source_id": sub id where q was asked, "target_id": id of answer, or None}.
+
+    Returns
+    ---------
+    dict
+        A dict of "nodes", "edges", and "options" formatted for react-graph-vis.
+    """
     nodes = []
     edges = []
 
@@ -1208,8 +1265,6 @@ def prep_subs_viz_conns(result_list, question_list):
             "url": "https://www.google.com/search?q=" + question["text"]
         }
         nodes.append(node)
-        
-        
 
     for result in result_list:
         node = {
@@ -1271,6 +1326,22 @@ def prep_subs_viz_conns(result_list, question_list):
 
 
 def get_mentions(user_id, submission_id, user_communities):
+    """Function to find everytime a submission ID is mentioned.
+
+    Method Parameters
+    ----------
+    user_id: str, required
+        The ID of the user making the request.
+    submission_id: str, required
+        The ID of the submission to use a query.
+    user_communities: list of str, required
+        The IDs of the communities to be searched over.
+
+    Returns
+    ---------
+    list
+        The output from submission_results_pages.
+    """
     _, results = search_submissions(user_id, user_communities, query=submission_id)
     user_communities = [ObjectId(x) for x in user_communities]
     community_names = find_community_names(user_communities)
