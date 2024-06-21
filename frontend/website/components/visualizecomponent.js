@@ -124,9 +124,9 @@ const VisualizeMap = () => {
     const getCommunityDocuments = async () => {
         let url;
         if (communityId == "all")
-            url = BASE_URL_CLIENT + WEBSITE_SEARCH_ENDPOINT + "?query=" + encodeURIComponent(query) + "&community=all&source=visualize&levelfilter=" + filterOrder.join(";");
+            url = BASE_URL_CLIENT + WEBSITE_SEARCH_ENDPOINT + "?query=" + encodeURIComponent(query) + "&community=all&source=website_visualize&levelfilter=" + filterOrder.join(";");
         else
-            url = BASE_URL_CLIENT + WEBSITE_SEARCH_ENDPOINT + "?community=" + communityId + "&source=visualize&levelfilter=" + filterOrder.join(";");
+            url = BASE_URL_CLIENT + WEBSITE_SEARCH_ENDPOINT + "?community=" + communityId + "&source=website_visualize&levelfilter=" + filterOrder.join(";");
         const res = await fetch(url, {
             method: "GET",
             headers: new Headers({

@@ -56,7 +56,7 @@ export default function Footer(props) {
   };
 
   const navigationCol2 = {
-    Setup: { label: "Setup Instructions", value: "/setup" },
+    Setup: { label: "Setup Instructions", value: "/community/661056f76eff65a5d6228a9d" },
     PrivacyPolicy: { label: "Privacy Policy", value: "/privacy" },
     ReleaseLog: { label: "Release Log", value: "/releaselog" },
     Documentation: { label: "Documentation", value: "/documentation" }
@@ -162,7 +162,7 @@ export default function Footer(props) {
             </div>
 
             <div className="max-w-md mt-4 text-gray-500 dark:text-gray-400">
-              TextData is a social platform for collaboratively creating, sharing, and learning from wiki-style communities. We offer a stand-alone website and a Chrome extension, all for free.
+              TextData is an online platform designed to remove the knowledge barriers of online information discovery by leveraging the collaboration of communities.
             </div>
 
 
