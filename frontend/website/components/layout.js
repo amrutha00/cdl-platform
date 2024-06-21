@@ -2,7 +2,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Header from "./header";
 import Footer from "./footer";
-import SideNav from "./sidenav";
 import useQuickAccessStore from "../store/quickAccessStore";
 import { Divider, Paper } from "@mui/material";
 import jsCookie from "js-cookie";
