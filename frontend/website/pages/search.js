@@ -88,7 +88,6 @@ function SearchResults({ data, show_relevance_judgment, own_submissions, communi
 
   const loadMoreResults = async () => {
 
-    console.log('loading more rez')
     try {
       const response = await fetch(BASE_URL_CLIENT + WEBSITE_SEARCH_ENDPOINT + '?search_id=' + data.search_id + '&page=' + page, {
         headers: new Headers({
@@ -375,6 +374,7 @@ export async function getServerSideProps(context) {
       searchURL += "search_id=" + context.query.search_id;
     } else {
       searchURL += "community=" + context.query.community;
+      searchURL += "&source=website_searchbar"
 
       if (context.query.query != undefined) {
         searchURL += "&query=" + encodeURIComponent(context.query.query);

@@ -3,120 +3,33 @@ import "bootstrap/dist/css/bootstrap.min.css";
 import SearchResult from "../components/searchresult";
 import jsCookie from "js-cookie";
 import Divider from "@mui/material/Divider";
-import FormControl from "@mui/material/FormControl";
-import Grid from "@mui/material/Grid";
-import MenuItem from "@mui/material/MenuItem";
-import Select from "@mui/material/Select";
 import InfiniteScroll from "react-infinite-scroll-component";
 import React, { useEffect, useState } from "react";
-import { Paper, Button, IconButton, Skeleton, Tooltip, Typography } from "@mui/material";
+import { IconButton } from "@mui/material";
 import { ArrowUpwardOutlined } from "@mui/icons-material";
-import { Router, useRouter } from "next/router";
+import { useRouter } from "next/router";
 import QuickSubmissionBox from "../components/quickSubmissionBox";
-import Setup from "./setup";
-import dynamic from "next/dynamic";
 import useUserDataStore from "../store/userData";
 import { BASE_URL_CLIENT, BASE_URL_SERVER, RECENTLY_ACCESSED_SUB_ENDPOINT, 
         COMMUNITIES_ENDPOINT, RECOMMEND_COMMUNITIES_ENDPOINT, 
         WEBSITE_SEARCH_ENDPOINT} from "../static/constants";
 import RecommendedCommunityBox from "../components/recommendedCommunityBox";
 
-const HomeConnections = dynamic(() => import("./homeconnections"), {
-  ssr: false,
-});
 
 function Home({ data, community_joined_data, recently_accessed_submissions, recommendedCommunitiesData }) {
-  const router = useRouter();
   const [items, setItems] = useState(data.search_results_page);
   const [page, setPage] = useState(parseInt(data.current_page) + 1);
   const [latestRecommendationId, setLatestRecommendationId] = useState(data.search_id)
   const [endOfRecommendations, setEndOfRecommendations] = useState((data.search_results_page.length) < 10)
-  const [userOwnSubmissions, setUserOwnSubmissions] = useState(null);
 
-  const [onboardingStep, setOnboardingStep] = useState(0);
-  let extensionId = "aafcjihpcjlagambenogkhobogekppgp";
-  let imgSrc = "/tree48.png";
 
-  const { userCommunities, user_id, setUserDataStoreProps } = useUserDataStore();
+  const { setUserDataStoreProps } = useUserDataStore();
 
-  let homePageContent = <Setup head="Onboarding" updateStep={onboardingStep}></Setup>;
-
-  function checkExtension() {
-    const isImagePresent = new Promise((resolve, _) => {
-      const img = new Image();
-      img.src = "chrome-extension://" + extensionId + imgSrc;
-      img.onload = () => {
-        resolve(true);
-      }
-      img.onerror = () => {
-        resolve(false);
-      }
-    });
-    return isImagePresent;
-  }
-
-  async function checkOnboarding() {
-    const img = await checkExtension();
-    if (!img) {
-      if (community_joined_data.community_info.length > 0 || community_joined_data.followed_community_info.length > 0) {
-        if (recently_accessed_submissions && recently_accessed_submissions.length >= 1) {
-          setOnboardingStep(0);
-        } else {
-          setOnboardingStep(3);
-        }
-      }
-      else {
-        setOnboardingStep(1);
-      }
-    } else {
-      if (community_joined_data.community_info.length > 0 || community_joined_data.followed_community_info.length > 0) {
-        if (!(endOfRecommendations && items.length > 0)) {
-          //if user has created community but no submission
-          setOnboardingStep(3);
-        }
-      } else {
-        setOnboardingStep(2);
-      }
-    }
-  }
-
-  async function getVizData() {
-    var searchURL = BASE_URL_CLIENT + WEBSITE_SEARCH_ENDPOINT;
-    searchURL += "?own_submissions=True" + "&community=all&visualize=True";
-    const users_submissions = await fetch(searchURL, {
-      headers: new Headers({
-        Authorization: jsCookie.get("token"),
-      }),
-    });
-
-    if (users_submissions.status == 200) {
-      const user_own_submissions = await users_submissions.json();
-      setUserOwnSubmissions(user_own_submissions);
-      return user_own_submissions
-    }
-    else {
-      setUserOwnSubmissions(null);
-      return null;
-    }
-
-  }
 
   useEffect(async () => {
-    await checkOnboarding();
     setUserDataStoreProps({ userCommunities: community_joined_data.community_info });
-    // get viz data
-    //var temp = await getVizData();
-    console.log('received vizdata!');
 
   }, []);
-
-  const handleIndexFinish = (data) => {
-    window.location.reload();
-  }
-
-  if (onboardingStep > 0) {
-    homePageContent = <Setup head="Onboarding" updateStep={onboardingStep} setupFinish={handleIndexFinish}></Setup>;
-  }
 
   const fetchNextPage = async () => {
     let pg = page
@@ -183,8 +96,7 @@ function Home({ data, community_joined_data, recently_accessed_submissions, reco
     });
   };
 
-  if (onboardingStep == 0) {
-    homePageContent = (
+  let homePageContent = (
       <div className="px-4 sm:mx-6">
         <div className="text-center">
           <h1 className="mb-2 text-3xl font-bold text-gray-600">TextData</h1>
@@ -206,24 +118,6 @@ function Home({ data, community_joined_data, recently_accessed_submissions, reco
 
         <Divider className="mb-4" />
 
-        {/* Submission Graph */}
-        {/*<div className="mb-8 lg:mx-60">
-          <h2 className="text-xl font-semibold mb-4">Visualizing Your Submissions</h2>
-          {!userOwnSubmissions ? (
-            <div className="text-center">
-              <Tooltip title="Loading" placement="top">
-                <Skeleton animation="wave" variant="rectangular" width={'100ch'} height={300} />
-              </Tooltip>
-            </div>
-          ) : (
-            <div style={{ height: '65vh' }}>
-              <HomeConnections nds={userOwnSubmissions && userOwnSubmissions['nodes']} eds={userOwnSubmissions && userOwnSubmissions['edges']} />
-            </div>
-          )}
-        </div>*/}
-
-        <Divider className="my-4" />
-
         <div className="mb-4 lg:mx-60">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-xl font-semibold">New Submissions</h2>
@@ -234,7 +128,7 @@ function Home({ data, community_joined_data, recently_accessed_submissions, reco
             next={fetchNextPage}
             hasMore={!endOfRecommendations}
             loader={!endOfRecommendations && <div className="text-center">Loading...</div>}
-            endMessage={endOfRecommendations && items.length > 0 ? <div className="text-center">You've reached the end of your recommendations.</div> : <div className="text-center">No recommendations to display. <br /> <a href="/community">Click here to create or join a community!</a></div>}
+            endMessage={endOfRecommendations && items.length > 0 ? <div className="text-center">You've reached the end of your recommendations.</div> : <div className="text-center">No recommendations to display. <br /> <a href="https://textdata.org/community/661056f76eff65a5d6228a9d">Click here to learn how to use TextData!</a></div>}
           >
             <div className="flex flex-col items-center">
               {items.map((d, idx) => (
@@ -286,7 +180,6 @@ function Home({ data, community_joined_data, recently_accessed_submissions, reco
         }
       </div >
     );
-  }
 
   return (
     <>
@@ -316,7 +209,7 @@ export async function getServerSideProps(context) {
     };
   } else {
     var recommendationURL = BASE_URL_SERVER + WEBSITE_SEARCH_ENDPOINT;
-    recommendationURL += "?community=all";
+    recommendationURL += "?community=all&source=website_homepage_recs";
     const res = await fetch(recommendationURL, {
       headers: new Headers({
         Authorization: context.req.cookies.token,
@@ -343,9 +236,6 @@ export async function getServerSideProps(context) {
       }),
     });
     const recommendedCommunitiesData = await recommendedCommunities.json();
-
-    var searchURL = BASE_URL_SERVER + WEBSITE_SEARCH_ENDPOINT;
-    searchURL += "?own_submissions=True&community=all&visualize=True";
 
     const data = await res.json();
     const recently_accessed_submissions = await recentlyAccessedSubmissions.json();

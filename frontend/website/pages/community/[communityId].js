@@ -58,7 +58,7 @@ export default function CommunityHomepage(props) {
 
     const getCommunitySubmissions = async () => {
 
-        const com_submissions = await fetch(BASE_URL_CLIENT + WEBSITE_SEARCH_ENDPOINT + "?community=" + props.community.id + "&own_submissions=False&page=0", {
+        const com_submissions = await fetch(BASE_URL_CLIENT + WEBSITE_SEARCH_ENDPOINT + "?community=" + props.community.id + "&own_submissions=False&page=0&source=website_community_page", {
             headers: new Headers({
                 Authorization: jsCookie.get("token"),
             }),

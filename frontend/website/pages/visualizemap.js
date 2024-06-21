@@ -75,7 +75,7 @@ export default function VisualizeMap() {
   }
 
   const getUserSubmissions = async (query, communityId, ownSub) => {
-    let url = BASE_URL_CLIENT + WEBSITE_SEARCH_ENDPOINT + "?query=" + query + "&community=" + communityId + "&visualize=True";
+    let url = BASE_URL_CLIENT + WEBSITE_SEARCH_ENDPOINT + "?query=" + query + "&community=" + communityId + "&source=website_visualize";
     if (ownSub == "True") {
       url += "&own_submissions=True";
     }

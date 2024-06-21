@@ -148,18 +148,23 @@ def extension_search(current_user):
     if not partial_intent and not highlighted_text:
         return response.error("One of partial_intent, highlighted_text must be provided.", Status.BAD_REQUEST)
     
-    if partial_intent and partial_intent[-1] == "?":
-        predicted_intent = partial_intent  
-    elif partial_intent:
-        input_text = str({"partial_intent": partial_intent, "highlighted_text": highlighted_text})
-        predicted_intent = generate(input_text, ics_query_prefix_prompt, llama3suffix_prompt)[0]
-    else:
-        input_text = str({"highlighted_text": highlighted_text})
-        predicted_intent = generate(input_text, ics_noquery_prefix_prompt, llama3suffix_prompt)[0]
+    try:
+        if partial_intent and partial_intent[-1] == "?":
+            predicted_intent = partial_intent  
+        elif partial_intent:
+            input_text = str({"partial_intent": partial_intent, "highlighted_text": highlighted_text})
+            predicted_intent = generate(input_text, ics_query_prefix_prompt, llama3suffix_prompt)[0]
+        else:
+            input_text = str({"highlighted_text": highlighted_text})
+            predicted_intent = generate(input_text, ics_noquery_prefix_prompt, llama3suffix_prompt)[0]
+    except Exception as e:
+        traceback.print_exc()
+        predicted_intent = partial_intent
 
 
     search_id = log_search_request(user_id, 
-                                   source=["webpages", "submissions"],
+                                   "extension",
+                                   scope=["webpages", "submissions"],
                                    context={
                                        "url": url,
                                        "highlighted_text": highlighted_text,
@@ -197,9 +202,9 @@ def extension_search(current_user):
                     # Only include one result from submission
                     break
 
-    # Add Users Also Ask questions
+    # Add Users Also Ask questions (only from a user's communities)
     sl_db = SearchLogs()
-    searches_on_url = sl_db.find({"context.url": url})
+    searches_on_url = sl_db.find({"context.url": url, "filters.communities": {"$in": user_communities}})
     asked_questions = []
     for search_log in searches_on_url:
         genq = search_log.intent["generated_question"]
@@ -234,12 +239,16 @@ def website_search(current_user):
             A list of community IDs to search. Each community should be separated by a comma.
             Can also be "all". Here, all joined and followed communities will be searched.
 
+        source : str, required
+            For logging where the search was made. One of
+                website_visualize
+                website_homepage_recs
+                website_community_page
+                website_searchbar
+
         own_submissions : bool, optional
             If true, only search results from one's own submissions will be returned.
             Defaults to True.
-
-        visualize : bool, optional
-            To return in visualization format, defaults to False.
 
     Request Parameters (Paging)
     ---------
@@ -269,7 +278,7 @@ def website_search(current_user):
     own_submissions = request.args.get("own_submissions", True)
     if own_submissions == "False":
         own_submissions = False
-    visualize = request.args.get("visualize", False)
+    source = request.args.get("source", None)    
 
     # Parameters for paging
     search_id = request.args.get("search_id", None)
@@ -329,10 +338,13 @@ def website_search(current_user):
                 
     ## Validate access to requested communities and search
     if validate_community_access(user_communities, requested_communities):
+        if source not in ["website_visualize", "website_homepage_recs", "website_community_page", "website_searchbar"]:
+            return response.error("Invalid source.", Status.BAD_REQUEST) 
         num_search_results, search_results = search_submissions(str(user_id), [str(x) for x in requested_communities], query=query, own_submissions=own_submissions)
         community_names = find_community_names(requested_communities)
         search_id = log_search_request(user_id, 
-                                   source=["submissions"],
+                                   source,
+                                   scope=["submissions"],
                                    intent={
                                        "typed_query": query,
                                    },
@@ -348,7 +360,7 @@ def website_search(current_user):
 
 
         # Call export with this `search_id` -> list of submissions for that search -> exported_list
-        if visualize:
+        if source == "website_visualize":
             submissions = export_helper(str(user_id), str(search_id))
             sl_db = SearchLogs()
 
@@ -1169,14 +1181,22 @@ def log_search_click(search_id, clicked_url):
 
 
 
-def log_search_request(user_id, source=[], context={}, intent={}, filters={}):
+def log_search_request(user_id, source, scope=[], context={}, intent={}, filters={}):
     """Handles the creation of a search request log.
 
     Method Parameters
     ----------
     user_id : ObjectId, required
         The ID of the user making the request.
-    source : list of str, required
+    source : str, required
+        Where in TextData the search is being performed. One of
+            website_visualize
+            website_homepage_recs
+            website_community_page
+            website_mentions
+            website_searchbar
+            extension
+    scope : list of str, required
         What the search is over, can contain
             "webpages": which indicates a search over webpages.
             "submissions": which indicates a search over submissions.
@@ -1211,7 +1231,8 @@ def log_search_request(user_id, source=[], context={}, intent={}, filters={}):
     sl = SearchLogs()
     new_search_log = SearchLog(
         user_id,
-        source=source,
+        source,
+        scope=scope,
         context=context,
         intent=intent,
         filters=filters
@@ -1288,13 +1309,13 @@ def prep_subs_viz_conns(result_list, question_list):
     options = {
         "autoResize": True,
         "physics": {
-            "barnesHut": {
-                "gravitationalConstant": -15000,
-                "centralGravity": 1.5,
-                "avoidOverlap": 1,
-            },
-            "minVelocity": 30,
-            "maxVelocity": 40,
+            "forceAtlas2Based": {
+                "gravitationalConstant": -100,
+                "centralGravity": 0.04,
+                "avoidOverlap": 1.0,
+                "springLength": 500,
+                "springConstant": 0.04
+            }
         },
         "interaction": {
             "hover": True,
@@ -1326,7 +1347,7 @@ def prep_subs_viz_conns(result_list, question_list):
 
 
 def get_mentions(user_id, submission_id, user_communities):
-    """Function to find everytime a submission ID is mentioned.
+    """Function to find every time a submission ID is mentioned.
 
     Method Parameters
     ----------
@@ -1346,7 +1367,8 @@ def get_mentions(user_id, submission_id, user_communities):
     user_communities = [ObjectId(x) for x in user_communities]
     community_names = find_community_names(user_communities)
     search_id = log_search_request(user_id, 
-                                   source=["submissions"],
+                                   "website_mentions",
+                                   scope=["submissions"],
                                    intent={
                                        "typed_query": submission_id
                                    },
