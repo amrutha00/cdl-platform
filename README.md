@@ -1,12 +1,10 @@
 # TextData
-TextData is a social platform for collaboratively creating, sharing, and learning from wiki-style communities. We offer a stand-alone website and a Chrome extension, all for free.
+TextData is an online platform for communities of users to discover the right information at the right place.
 
-
-To use TextData, you have three options:
+To use TextData, you have two options:
 
 1. Full online version: Visit [textdata.org](https://textdata.org/), install the [Chrome extension](https://chrome.google.com/webstore/detail/the-community-digital-lib/didjjbenidcdopncjajdoeniaplicdee?hl=en&authuser=0), create an account, and begin using TextData.
 2. Full offline version: Clone this repository, set up Docker, and run the services locally. This is described in the section below titled "Setting Up the Local Version".
-3. Hosted backend, local frontend: You can leverage the APIs for the backend, and create or extend your own frontend (website or browser extension). The API documentation is [here](https://github.com/thecommunitydigitallibrary/cdl-platform/tree/dev/backend).
 
 <details>
 <summary>Setting Up the Offline Version</summary>
@@ -148,13 +146,7 @@ neural_api=http://host.docker.internal:9300/
 
 Note that the slashes need to be reversed if running on Mac/Linux (above is written for windows).
 
-Then, navigate to the neural folder, add the following to ``env_neural_prod.ini``
-
-```
-hf_token=<your huggingface token>
-```
-
-Finally, to start the neural docker container (requires GPU), run the following from the ``neural`` folder: 
+To start the neural docker container (requires GPU), run the following from the ``neural`` folder: 
 
 ```
 docker build -t .
@@ -164,22 +156,6 @@ docker run --gpus --env-file env_neural_prod.ini -p 9300:80 hash_of_above_image
 #### Extension:
 Navigate to ``frontend\extension`` and run ``npm ci`` and then run ``npm run build``. Then upload the ``build`` file to Chrome while using Development Mode. Once uploaded, open the extention, go to the setting section and chnage the backend source from textdata.org to other and click on Save. 
 
-
-### Running Test cases
-Note: Local Docker containers must be up and running before you run below commands
-```
-cd <project-directory>\backend
-pytest .\tests\test_server.py
-```
-
-</details>
-
-<details>
-<summary>Building on Top of the Hosted Backend</summary>
-<br>
-
-## Building on Top of the Hosted Backend
-See the API documentation [here](https://github.com/thecommunitydigitallibrary/cdl-platform/tree/dev/backend). Please be courteous regarding the amount of API calls so that the backend servers do not get overwhelmed.
 
 </details>
 
