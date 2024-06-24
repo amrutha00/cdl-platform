@@ -208,7 +208,7 @@ def extension_search(current_user):
     asked_questions = []
     for search_log in searches_on_url:
         genq = search_log.intent["generated_question"]
-        if genq not in asked_questions and genq != predicted_intent:
+        if genq not in asked_questions and genq != predicted_intent and genq != "":
             asked_questions.append(genq)
     random.shuffle(asked_questions)
     asked_questions = asked_questions[:5]
@@ -562,13 +562,16 @@ def create_pages_submission_lite(search_results, search_id):
     for hit in search_results:
         sub_id = str(hit["_id"])
         url = format_url("", sub_id)
+        description = hit["_source"].get("highlighted_text", "")
+        if not description:
+            description = "No Preview Available."
         result = {
             "redirect_url": create_redirect_url(url, search_id),
             "display_url": build_display_url(url),
             "orig_url": url,
             "submission_id": sub_id,
             "title": hit["_source"].get("explanation", "No Title Available"),
-            "description": hit["_source"].get("highlighted_text", "No Preview Available"),
+            "description": description,
             "score": hit.get("_score", 0),
             "time": "",
             "type": "submission",
@@ -703,6 +706,10 @@ def search_webpages(query, search_id, format_for_frontend=True):
     list of dict
         A list of formatted search results.
     """
+
+    if 'SEARCH_V7_SUBSCRIPTION_KEY' or 'SEARCH_V7_ENDPOINT' not in os.environ:
+        return []
+
     subscription_key = os.environ['SEARCH_V7_SUBSCRIPTION_KEY']
     endpoint = os.environ['SEARCH_V7_ENDPOINT']
 
