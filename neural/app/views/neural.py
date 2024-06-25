@@ -94,7 +94,7 @@ def neural_rerank():
     if not queries or not documents:
         return {"message": "Must send both queries and documents"}, 400
     
-
+    
     encoded_queries = rerank_model.encode(queries)
     encoded_documents = rerank_model.encode(documents)
 
