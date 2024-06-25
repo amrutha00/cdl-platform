@@ -707,11 +707,11 @@ def search_webpages(query, search_id, format_for_frontend=True):
         A list of formatted search results.
     """
 
-    if 'SEARCH_V7_SUBSCRIPTION_KEY' or 'SEARCH_V7_ENDPOINT' not in os.environ:
-        return []
+    subscription_key = os.environ.get('SEARCH_V7_SUBSCRIPTION_KEY', "")
+    endpoint = os.environ.get('SEARCH_V7_ENDPOINT', "")
 
-    subscription_key = os.environ['SEARCH_V7_SUBSCRIPTION_KEY']
-    endpoint = os.environ['SEARCH_V7_ENDPOINT']
+    if subscription_key == "" or endpoint == "":
+        return []
 
     # Construct a request
     mkt = 'en-US'
