@@ -1085,7 +1085,7 @@ def rerank(queries, documents):
         print("Rerank not currently supported.")
         return {}
     try:
-        resp = requests.post(neural_api + "/neural/rerank", json={"queries": queries, "documents": chunked_docs})
+        resp = requests.post(neural_api + "/neural/rerank/", json={"queries": queries, "documents": chunked_docs})
         resp_json = resp.json()
 
         if resp.status_code == 200:
