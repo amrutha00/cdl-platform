@@ -26,18 +26,26 @@ const Hero = () => {
               Save what you know. Find what you don't.
             </h3>
             <p className="py-5 text-xl leading-normal text-gray-500 lg:text-xl xl:text-xl dark:text-gray-300">
-              TextData is an online platform for communities of users to discover the right information at the right place. We provide a website and a browser extension where users can effortlessly ask and answer questions in any online context. We also provide question recommendations based on what other users have asked in similar prior contexts.
+              TextData is an online platform designed to help you discover the right information at the right place.
+
               <br /><br />
-              Answers are provided from both the general web and user-created submissions to TextData communities. The recommended questions and provided answers help users efficiently discover high-quality information while mitigating many of the challenges in knowing what to ask and where it should be asked.
+
+              Our Chrome browser extension predicts the questions that you'll have on any webpage. You can guide this prediction process by highlighting text and by typing a single word, phrase, or full question.
+              
+              <br /><br />
+
+              The browser extension also shows you questions that other TextData users have asked while viewing the webpage.
+
+              <br /><br />
+              Answers are provided from both the general web and user-created submissions to TextData communities. To get started, click one of the buttons below!
             </p>
 
             <div className="flex flex-col m-3 items-start space-y-3 sm:space-x-4 sm:space-y-0 sm:items-center sm:flex-row">
 
-              {!isLoggedOut ? <a href="/" className="px-8 py-3 text-lg font-medium text-center text-white bg-blue-500 rounded-md no-underline">
-                Home
-              </a> : <a href="/auth" className="px-8 py-3 text-lg font-medium text-center text-white bg-blue-500 rounded-md no-underline">
-                Get Started
-              </a>}
+
+              <a href="https://textdata.org/community/661056f76eff65a5d6228a9d" className="px-8 py-3 text-lg font-medium text-center text-white bg-blue-500 rounded-md no-underline">
+                Onboarding
+              </a>
 
               <a
                 href="https://chrome.google.com/webstore/detail/the-community-digital-lib/didjjbenidcdopncjajdoeniaplicdee?hl=en&authuser=0"
@@ -78,7 +86,7 @@ const Hero = () => {
         </div>
         <div className="flex items-center justify-center w-full lg:w-2/4">
           <video muted controls autoPlay loop>
-            <source src="/images/full_intro.mp4" type="video/mp4" />
+            <source src="/images/ext_find.mp4" type="video/mp4" />
             Your browser does not support the video tag.
           </video>
         </div>
