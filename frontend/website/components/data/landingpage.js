@@ -23,8 +23,8 @@ import visualizeImg from "../../public/images/visualize.png";
 import extFindImg from "../../public/images/extension_find.png";
 
 const benefitOne = {
-  title: "Ask and Answer Questions",
-  desc: "Search using in-context search and recommended questions.",
+  title: "Effortlessly Search from Anywhere",
+  desc: "Use our Chrome Extension to ask and answer questions while viewing any webpage.",
   image: extFindImg,
   link: "search-overview",
   bullets: [
@@ -34,7 +34,7 @@ const benefitOne = {
       icon: <SearchIcon />,
     },
     {
-      title: "Effortlessly Type Questions",
+      title: "Type Any Question",
       desc: "Type a single word or phrase in the search bar and TextData will update the question based on what you type. Add a '?' at the end of your query to ask the typed query without any prediction.",
       icon: <ChangeCircleIcon />,
     },
@@ -48,7 +48,7 @@ const benefitOne = {
 
 const benefitTwo = {
   title: "Form Communities",
-  desc: "A community is where members can save and organize information. A community can consist of any number of users.",
+  desc: "A Community lets TextData users create, describe, and save online content to enrich search results.",
   image: communityImg,
   link: "community-overview",
   bullets: [
