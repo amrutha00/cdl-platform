@@ -14,6 +14,7 @@ import { LinearProgress } from "@mui/material";
 import useUserDataStore from "../store/userData";
 import useQuickAccessStore from "../store/quickAccessStore";
 
+
 import { BASE_URL_CLIENT, COMMUNITIES_ENDPOINT, LOGIN_ENDPOINT, CREATE_ACCOUNT_ENDPOINT, RESET_PW_REQUEST_ENDPOINT } from "../static/constants";
 
 const minUsernameLength = "2";
@@ -55,7 +56,7 @@ export default function ({ data }) {
   const { communityData, setcommunityData } = useQuickAccessStore();
   const [showProgress, setShowProgress] = useState(false);
   const { userCommunities, isLoggedOut, setLoggedOut, setUserDataStoreProps } = useUserDataStore();
-
+ 
   const handleClick = () => {
     setOpen(true);
   };
@@ -99,7 +100,10 @@ export default function ({ data }) {
       if (res.status === 200) {
         jsCookie.set("token", resJson.token);
         setLoggedOut(false);
-
+        console.log("res json",resJson);
+        setUserDataStoreProps({ username: resJson.username });
+        setUserDataStoreProps({ user_id: resJson.userid });
+        
         // adding dropdown data to local storage
         updateDropDownSearch();
         setShowProgress(false)
@@ -144,6 +148,8 @@ export default function ({ data }) {
         setLoggedOut(false);
         updateDropDownSearch();
         setShowProgress(false)
+        setUserDataStoreProps({ username: resJson.create_username });
+        setUserDataStoreProps({ user_id: resJson.userid });
         Router.push("/");
       } else {
         setShowProgress(false)
