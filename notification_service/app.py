@@ -113,12 +113,12 @@ class RabbitMQManager:
 
             for user in list(users_in_comm):
                 user_id = str(user['_id'])
-                print("user in writing to db",user)
-                print("Writing to DB")
                 if user["email"] == src_notif_email:
                     continue
                 notif_data = data.copy()
+                print("self.websocket_server.connected_users",self.websocker_server.connected_users)
                 if user_id in self.websocker_server.connected_users:
+                    
                     await self.websocker_server.send_message(user_id, {"type": "notification", "data": notif_data})
                     notif_data['notify_delivered'] = True
                     print("notifying user", user['username'],user_id)
