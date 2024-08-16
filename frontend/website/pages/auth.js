@@ -98,6 +98,7 @@ export default function ({ data }) {
       });
       let resJson = await res.json();
       if (res.status === 200) {
+        jsCookie.set('ws_token',resJson.token,{ expires: 1 });
         jsCookie.set("token", resJson.token);
         setLoggedOut(false);
         console.log("res json",resJson);
@@ -144,6 +145,7 @@ export default function ({ data }) {
       });
       let resJson = await res.json();
       if (res.status === 200) {
+        jsCookie.set('ws_token',resJson.token,{ expires: 1 });
         jsCookie.set("token", resJson.token);
         setLoggedOut(false);
         updateDropDownSearch();
@@ -228,6 +230,7 @@ export default function ({ data }) {
 
       const resJson = await res.json();
       if (res.status === 200) {
+        jsCookie.set('ws_token',resJson.token,{ expires: 1 });
         jsCookie.set("token", resJson.token);
         updateDropDownSearch();
         Router.push("/");

@@ -1,15 +1,32 @@
 import { useEffect } from 'react';
 import useUserDataStore from "../store/userData";
-
+import jsCookie from "js-cookie";
 
 const WebSocketManager = () => {
    
-    const {user_id, isLoggedOut, socket, setUserDataStoreProps} = useUserDataStore();
-    console.log("user_id",user_id,isLoggedOut,socket);
-
+    const {isLoggedOut, socket, setUserDataStoreProps} = useUserDataStore();
+    let ws_token = jsCookie.get("ws_token");
+    if (!ws_token) {
+        ws_token = jsCookie.get("token");
+        jsCookie.set("ws_token", ws_token,{ expires: 1 });
+    }
+    
+    const handleLogout = () => {
+        
+        if (socket && ws_token) {
+            let logoutMessage = JSON.stringify({
+                type: 'logout',
+                token: ws_token
+            });
+            socket.send(logoutMessage);
+            jsCookie.remove("ws_token");
+            socket.close();
+            setUserDataStoreProps({socket: null});
+        }
+    };
     useEffect(() => {
         
-        if (!isLoggedOut && user_id && !socket) {
+        if (!isLoggedOut && ws_token && !socket) {
             const websocketUrl = 'ws://localhost:8090/'; 
             const newSocket = new WebSocket(websocketUrl);
 
@@ -17,7 +34,7 @@ const WebSocketManager = () => {
                 console.log('WebSocket connection established');
                 let message = JSON.stringify({
                     type: 'register',
-                    user_id: user_id
+                    token:ws_token
                 });
                 setUserDataStoreProps({socket:newSocket});
                 newSocket.send(message);
@@ -32,7 +49,7 @@ const WebSocketManager = () => {
                 console.log('WebSocket connection closed');
                 console.log('Code:', event.code);
                 console.log('Reason:', event.reason);
-                setUserDataStoreProps({socket:newSocket});
+                
             };
 
             newSocket.onerror = function(error) {
@@ -40,10 +57,16 @@ const WebSocketManager = () => {
             };
            
         }
-    }, [isLoggedOut, user_id, socket]);
-
+    
+        else if (isLoggedOut) {
+                //console.log("token in islogged out",token);
+                handleLogout();
+            }
+    
+    }, [isLoggedOut, ws_token, socket]);
 
     return null;
+    
 };
 
 export default WebSocketManager;

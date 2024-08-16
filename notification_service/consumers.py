@@ -1,28 +1,28 @@
-import multiprocessing
-from app import RabbitMQManager
-from threading import Thread
+from app import AsyncRabbitMQManager
+import asyncio
 import os
+from threading import Thread
 
+def consume(queue_name, websocket_server):
 
-def consume(queue):
-    rabbit_manager = RabbitMQManager(
-        rabbitmq_server=os.environ['rabbitmq_server'],
-        rabbitmq_username=os.environ['rabbitmq_username'],
-        rabbitmq_password=os.environ['rabbitmq_password'] 
+    rabbitmq_manager = AsyncRabbitMQManager(
+        rabbitmq_url=os.environ['rabbitmq_url'],
+        websocket_server=websocket_server
     )
-    rabbit_manager.declare_queue()
-    rabbit_manager.consume(queue)
+    print(f"Starting consuming on {queue_name} .......")
+    try:
+        asyncio.run(rabbitmq_manager.run_consume(queue_name))
+    except Exception as e:
+        print('Exception in consumer consume method',e)
 
-def start_consumers():
+def start_consumers(websocket_server):
+    print("starting consumers")
     queues = ["add_submission"]#['community_join', 'add_submission', 'submission_upvote', 'submission_mention']
-    #threads = []
-    processes = []
+    threads = []
     for queue in queues:
-        # thread = Thread(target=consume, args=(queue,))
-        # thread.daemon = True
-        # thread.start()
-        # threads.append(thread)
-        # process = multiprocessing.Process(target=consume, args=(queue,))
-        # process.daemon = True
-        # process.start()
-        # processes.append(process)
+        thread = Thread(target=consume, args=(queue,websocket_server))
+        thread.daemon = True
+        thread.start()
+        threads.append(thread)
+    
+   

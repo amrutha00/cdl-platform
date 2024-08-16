@@ -4,6 +4,9 @@ import json
 import os
 from bson import ObjectId
 from pymongo import MongoClient
+import jwt
+from motor.motor_asyncio import AsyncIOMotorClient
+
 
 class WebSocketServer:
 
@@ -18,37 +21,36 @@ class WebSocketServer:
     def __init__(self):
         if not hasattr(self, 'initialized'):  # This checks if it's the first time __init__ is called
             self.connected_users = {}
-            self.mongo_client = MongoClient(os.environ['cdl_test_uri'])
-            self.db = os.environ['db_name']
-            self.db_conn = self.mongo_client[self.db]
+            # self.mongo_client = MongoClient(os.environ['cdl_test_uri'])
+            # self.db = os.environ['db_name']
+            #self.db_conn = self.mongo_client[self.db]
+            self.mongo_client = AsyncIOMotorClient(os.environ['cdl_test_uri'])
+            self.db = self.mongo_client[os.environ['db_name']]
             self.initialized = True
 
     async def send_message(self, user_id, message):
-
-        # if username in self.connected_users:
         try:
             websocket = self.connected_users[user_id]
             await websocket.send(json.dumps(message))
-            print(f"Message {message['data']['notify_msg']} sent to {user_id}")
+            print(f"Message {message['data']} sent to {user_id}")
+            return True
         except Exception as e:
             print(f"Exception in send_messages for user_id: {user_id}: {e}")
-    
-    async def send_undelivered_messages(self, user_id):
+            return False
 
+    async def send_undelivered_messages(self, user_id):
+        notify_db = self.db.notifications
+        print("UNDELIVERED MESSAGES")
         try:
-            undelivered_messages = self.db_conn.notifications.find({'notify_to._id': ObjectId(user_id), 'notify_delivered': False})
-            for message in undelivered_messages:
-                #print("message in send_undelivered_msg",type(message),message['_id'])
-                message_copy = {}
-                message_copy['notify_msg'] = message['notify_msg']
-                message_copy['notify_timestamp'] = message['notify_timestamp']
-                message_copy['notify_type'] = message['notify_type']
-                message_copy['notify_read'] = message['notify_read']
-                message_copy['notify_delivered'] = message['notify_delivered']
-                await self.send_message(user_id, {"type": "notification", "data": message_copy})
-                self.db_conn.notifications.update_one({'_id': message['_id']}, {'$set': {'notify_delivered': True}})      
+            async for message in notify_db.find({'notify_to._id': ObjectId(user_id), 'notify_delivered': False}):
+                msg_delivered = await self.send_message(user_id, {"type": "notification", "data": message['notify_msg']}) #create db index for this field notify_to.Id
+                await notify_db.update_one({'_id': message['_id']}, {'$set': {'notify_delivered': True}})   
+                
+                return True
+            
         except Exception as e:
             print(f"Exception in send_undelivered_messages for user_id: {user_id}: {e}")
+            return False
             
         
 
@@ -57,29 +59,73 @@ class WebSocketServer:
             user_id = None
             async for message in websocket:
                 data = json.loads(message)
-                msg_type = data['type'] 
-                user_id = data['user_id']
-                print("self.connected_users in register",self.connected_users)
-                if msg_type == 'register' and user_id not in self.connected_users :                   
-                    self.connected_users[user_id] = websocket
-
-                    print("Connection created for user with user id, ",user_id)
-                    await self.send_undelivered_messages(user_id)
+                msg_type = data['type']                 
+                token =  jwt.decode(data["token"], os.environ["jwt_secret"], algorithms=["HS256"])
+                user_id = token['id']
+                
+                if user_id in self.connected_users:
+                     
+                    if msg_type == 'register':
+                        await self.send_undelivered_messages(user_id)
+                        print(f"User with user_id: {user_id} is already registered")
+                        continue
+                    elif msg_type == 'logout':
+                        del self.connected_users[user_id]
+                        print(f"User with user_id: {user_id} logged out and removed from connected_users")
                 else:
-                    print(f"User with user_id: {user_id} is already registered")
-        except Exception as e:
-            print(f"Exception in websocket server: {e}")
-        finally:
+                    if msg_type == 'register':
+                        self.connected_users[user_id] = websocket
+                        print("Connection created for user with user id, ",user_id)
+                        
+                        await self.send_undelivered_messages(user_id)
+
+        except websockets.exceptions.ConnectionClosedError as e:
+            if e.code == 1006:
+                print(f"Abnormal closure for user_id: {user_id}. Code: {e.code}, Reason: {e.reason}")
+            else:
+                print(f"WebSocket closed for user_id: {user_id}. Code: {e.code}, Reason: {e.reason}")
             if user_id and user_id in self.connected_users:
                 del self.connected_users[user_id]
+                print(f"WebSocket closed for user_id: {user_id}")
+        except Exception as e:
+            print(f"Exception in websocket server: {e}")
+            if user_id and user_id in self.connected_users:
+                del self.connected_users[user_id]
+                print(f"WebSocket closed for user_id: {user_id}")
+        finally:
+            pass
+            # if user_id and user_id in self.connected_users:
+            #     del self.connected_users[user_id]
+            #     print(f"WebSocket closed for user_id: {user_id}")
+        
     
     async def start_server(self):
-        async with websockets.serve(self.register, "0.0.0.0", 8090):
-            await asyncio.Future()  
+        try:
+            print("start server")
+            async with websockets.serve(self.register, "0.0.0.0", 8090):
+                await asyncio.Future()  
+        except Exception as e:
+            print(f"Exception in websocket server in the start_server method: {e}")
+    
+    async def shutdown(self):
+        print("Server is shutting down, closing all connections...")
+        try:
+            for user_id, websocket in list(self.connected_users.items()):
+                await websocket.close(code=1001, reason='Server shutdown')
+                print(f"Closed connection for user {user_id} in shutdown")
+        finally:
+            self.connected_users.clear()
 
-    def run(self):
+
+    def _run(self):
         try:
             print("Starting WebSocket server...")
+            '''
+            async needed to handle multiple user connections in a non-blocking manner without using threads
+            '''
             asyncio.run(self.start_server())
         except Exception as e:
             print(f"RuntimeError: {e}")
+    
+        finally:
+            asyncio.run(self.shutdown())

@@ -1,10 +1,11 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import os
-from app import RabbitMQManager  # Assuming RabbitMQManager is in app.py
+from app import AsyncRabbitMQManager
 from consumers import start_consumers
 from websocker_server import WebSocketServer
 import threading
+import asyncio
 
 
 app = Flask(__name__)
@@ -22,17 +23,22 @@ with open(env_file, "r") as f:
 
 websocket_server = WebSocketServer()
 
-rabbitmq_manager = RabbitMQManager(
-    rabbitmq_server=os.environ['rabbitmq_server'],
-    rabbitmq_username=os.environ['rabbitmq_username'],
-    rabbitmq_password=os.environ['rabbitmq_password'] 
+rabbitmq_manager = AsyncRabbitMQManager(
+    rabbitmq_url = os.environ['rabbitmq_url'],
+    websocket_server=websocket_server
 )
+
+
 
 @app.route('/health', methods=['GET'])
 def health_check():
     try:
-        rabbitmq_manager.connection.process_data_events()
-        return jsonify({'status': 'up'}), 200
+        connection_status = asyncio.run(rabbitmq_manager.connect_to_rabbitmq()) 
+        
+        if connection_status:
+            return jsonify({'status': 'up'}), 200
+        else:
+            return jsonify({'status': 'down', 'error': 'Failed to connect to RabbitMQ'}), 500
     except Exception as e:
         return jsonify({'status': 'down', 'error': str(e)}), 500
 
@@ -43,18 +49,21 @@ def publish_message():
         data = request.json
         routing_key = data['routing_key']
         message = data['message']
-        result = rabbitmq_manager.publish(routing_key, message)
+        result = asyncio.run(rabbitmq_manager.publish(routing_key, message)) #blocking call
+        
         if result:
             return jsonify({'status': 'success', 'message': 'Message published successfully'}), 200
         else:
+            
             return jsonify({'status': 'error', 'message': 'Failed to publish message'}), 500
     except Exception as e:
         import traceback
         traceback.print_exc()
+        print("Exception in publish message",e)
         return jsonify({'status': 'error', 'message': str(e)}), 400
 
 if __name__ == '__main__':
-    start_consumers()
-    websocket_thread = threading.Thread(target=websocket_server.run,daemon=True)
+    start_consumers(websocket_server)
+    websocket_thread = threading.Thread(target=websocket_server._run,daemon=True)
     websocket_thread.start()
     app.run(debug=True, host='0.0.0.0', port=80)
