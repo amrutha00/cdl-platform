@@ -49,6 +49,7 @@ class AsyncRabbitMQManager:
                 return self.queues
         except Exception as e:
             print("Error in declare queues",e)
+            raise
         
 
     async def publish(self, routing_key, message):
@@ -67,6 +68,7 @@ class AsyncRabbitMQManager:
         except Exception as e:
             print(f"Failed to deliver message due to: {e}")
             return False
+
             
 
     async def consume(self, queue_name):
@@ -74,22 +76,19 @@ class AsyncRabbitMQManager:
             try:
                 if not hasattr(self, 'channel') or self.channel.is_closed:
                     await self.connect_to_rabbitmq()
-                #await self.queues[queue_name].consume(self.on_message)
+               
                 consume_task = asyncio.create_task(self.queues[queue_name].consume(self.on_message))
                 await consume_task
                 
-            except aio_pika.exceptions.ConnectionClosed:
-                print("Connection to RabbitMQ closed. Reconnecting...")
-
             except Exception as e:
-                print(f"Exception in consumer: {e}")
-                print("Reconnecting to RabbitMQ...")
-                if not consume_task.done():
+                print(f"Exception occured in CONSUMER: {e}")
+                if consume_task and not consume_task.done():
                     consume_task.cancel()
-                try:
-                    await consume_task
-                except asyncio.CancelledError:
-                    print("Consume task cancelled during cleanup")
+                    try:
+                        await consume_task
+                    except asyncio.CancelledError:
+                        print("Consume task cancelled during cleanup")
+                print("Reconnecting to RabbitMQ in 5 seconds...")
                 await asyncio.sleep(5)
 
     async def on_message(self, message):
@@ -103,6 +102,7 @@ class AsyncRabbitMQManager:
         except Exception as e:
             print(f"Error processing message: {e}")
             await message.nack(requeue=True)
+            raise
             return False
 
     async def process_msgs(self, data):
@@ -129,7 +129,6 @@ class AsyncRabbitMQManager:
 
                     t1 = await task1
                     t2 = await task2
-                    #print("inserted document id",t1, type(t1),isinstance(t1, ObjectId))
                     if t2 == True:
                         if t1 != False and isinstance(t1, ObjectId):
                             notif_db =  self.db.notifications
@@ -150,6 +149,7 @@ class AsyncRabbitMQManager:
             return inserted_doc.inserted_id
         except Exception as e:
             print(f'Exception occured while writing to DB {e}')
+            raise
             return False
     
     async def push_notif(self,user,notif_data):
@@ -173,11 +173,16 @@ class AsyncRabbitMQManager:
                 return False
         except Exception as e:
             print(f'Exception occured while pushing notification {e}')
+            raise
             return False
         
     async def run_consume(self,queue_name):
         try:
-            await self.connect_to_rabbitmq()
-            await self.consume(queue_name)
+            rabbitmq_connect = await self.connect_to_rabbitmq()
+            if rabbitmq_connect:
+                await self.consume(queue_name)
+            else:
+                print("Failed to establish connection with RabbitMQ. Consumers not started")
         except Exception as e:
             print('Exception in run consume',e)
+            raise

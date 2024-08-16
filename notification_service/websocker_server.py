@@ -19,11 +19,8 @@ class WebSocketServer:
         return cls._instance
 
     def __init__(self):
-        if not hasattr(self, 'initialized'):  # This checks if it's the first time __init__ is called
+        if not hasattr(self, 'initialized'): 
             self.connected_users = {}
-            # self.mongo_client = MongoClient(os.environ['cdl_test_uri'])
-            # self.db = os.environ['db_name']
-            #self.db_conn = self.mongo_client[self.db]
             self.mongo_client = AsyncIOMotorClient(os.environ['cdl_test_uri'])
             self.db = self.mongo_client[os.environ['db_name']]
             self.initialized = True
@@ -34,22 +31,28 @@ class WebSocketServer:
             await websocket.send(json.dumps(message))
             print(f"Message {message['data']} sent to {user_id}")
             return True
+        except websockets.exceptions.ConnectionClosedOK:
+            print(f"Connection already closed for user_id: {user_id}")
+
         except Exception as e:
             print(f"Exception in send_messages for user_id: {user_id}: {e}")
-            return False
-
+            raise
+        return False
+    
     async def send_undelivered_messages(self, user_id):
         notify_db = self.db.notifications
         print("UNDELIVERED MESSAGES")
         try:
             async for message in notify_db.find({'notify_to._id': ObjectId(user_id), 'notify_delivered': False}):
                 msg_delivered = await self.send_message(user_id, {"type": "notification", "data": message['notify_msg']}) #create db index for this field notify_to.Id
-                await notify_db.update_one({'_id': message['_id']}, {'$set': {'notify_delivered': True}})   
-                
-                return True
+                if msg_delivered:
+                    await notify_db.update_one({'_id': message['_id']}, {'$set': {'notify_delivered': True}})
+                else:
+                    break
             
         except Exception as e:
             print(f"Exception in send_undelivered_messages for user_id: {user_id}: {e}")
+            raise
             return False
             
         
@@ -80,23 +83,18 @@ class WebSocketServer:
                         await self.send_undelivered_messages(user_id)
 
         except websockets.exceptions.ConnectionClosedError as e:
-            if e.code == 1006:
-                print(f"Abnormal closure for user_id: {user_id}. Code: {e.code}, Reason: {e.reason}")
-            else:
-                print(f"WebSocket closed for user_id: {user_id}. Code: {e.code}, Reason: {e.reason}")
-            if user_id and user_id in self.connected_users:
+            print(f"WebSocket closed for user_id: {user_id}. Code: {e.code}, Reason: {e.reason}")
+            if user_id in self.connected_users:
                 del self.connected_users[user_id]
-                print(f"WebSocket closed for user_id: {user_id}")
+            raise
         except Exception as e:
             print(f"Exception in websocket server: {e}")
             if user_id and user_id in self.connected_users:
                 del self.connected_users[user_id]
-                print(f"WebSocket closed for user_id: {user_id}")
-        finally:
-            pass
-            # if user_id and user_id in self.connected_users:
-            #     del self.connected_users[user_id]
-            #     print(f"WebSocket closed for user_id: {user_id}")
+                
+            raise
+        
+           
         
     
     async def start_server(self):
@@ -106,6 +104,7 @@ class WebSocketServer:
                 await asyncio.Future()  
         except Exception as e:
             print(f"Exception in websocket server in the start_server method: {e}")
+            raise
     
     async def shutdown(self):
         print("Server is shutting down, closing all connections...")
@@ -113,6 +112,9 @@ class WebSocketServer:
             for user_id, websocket in list(self.connected_users.items()):
                 await websocket.close(code=1001, reason='Server shutdown')
                 print(f"Closed connection for user {user_id} in shutdown")
+        except Exception as e:
+            print('Exception in shutdown ',e)
+            raise
         finally:
             self.connected_users.clear()
 
@@ -125,7 +127,7 @@ class WebSocketServer:
             '''
             asyncio.run(self.start_server())
         except Exception as e:
-            print(f"RuntimeError: {e}")
-    
+            print(f"Runtime error in _RUN {e}")
+            raise
         finally:
             asyncio.run(self.shutdown())
